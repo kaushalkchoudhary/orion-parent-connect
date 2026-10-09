@@ -2,7 +2,7 @@
 
 An invitation-only classroom camera portal for Orchids International School, powered by Orion. Parents sign in with an emailed password and a fresh email code, then see the one camera assigned to their account. The service has its own accounts, database and process; it does not share control-console sessions.
 
-This standalone repository contains the portal source, browser assets, tests and deployment templates. Its extraction does not change the running service, camera configuration or account database. The GitHub remote will be added when the destination repository is provided; the local branch is `main`.
+This standalone repository contains the portal source, browser assets, tests and deployment templates. Its extraction does not change the running service, camera configuration or account database. The source repository is [kaushalkchoudhary/orion-parent-connect](https://github.com/kaushalkchoudhary/orion-parent-connect), on branch `main`.
 
 ## Repository layout
 
