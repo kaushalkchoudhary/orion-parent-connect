@@ -186,8 +186,8 @@ unannounced fallback.
 
 ## Copying and pasting login codes
 
-Verification emails put one contiguous six-digit code first in the plain-text
-body and in a selectable HTML code block, with the subject "Verification code".
+Verification emails include an **Open code** link and put one contiguous six-digit
+code first in the plain-text body and in a selectable HTML code block, with the subject "Verification code".
 Parents can copy it normally, then choose **Paste code** in the portal or paste
 into the existing code field. Spaces and hyphens are accepted as separators;
 leading zeroes are preserved. Pasting does not submit or verify automatically.
@@ -197,8 +197,17 @@ browser denies it or lacks support, ordinary paste and typing remain available.
 The Gmail "Copy code" summary card is controlled by Gmail. Google's
 [email markup reference](https://developers.google.com/workspace/gmail/markup/reference)
 does not document a sender-controlled OTP copy action. Clear wording is a
-compatibility measure, not a guarantee that Gmail will show the card. No scripts,
-fake copy links, OTP-in-URL links, or unsupported schema are added to the email.
+compatibility measure, not a guarantee that Gmail will show the card.
+
+The email button opens the portal’s `/code` page. Its URL fragment carries the
+code and expiry, never a login/session token; fragments are not sent in HTTP
+requests. The page immediately clears the fragment from the current history
+entry. Treat the full email link as sensitive, like the code itself.
+The page offers **Copy code**, with manual selection if clipboard access is denied,
+and hides the code at expiry. It does not verify a login or grant camera access.
+Server-side OTP expiry, single use and the original browser challenge still apply.
+Refreshing the page after fragment removal requires reopening the email link.
+No email scripts or unsupported schema are used.
 The clipboard button uses the browser's
 [Clipboard readText API](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText)
 over HTTPS. Its permission behavior varies by browser.

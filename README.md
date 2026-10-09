@@ -51,7 +51,7 @@ sudo -u orion-parent /opt/wantara/parent-portal/parent-portal \
 
 `invite` refuses an existing account. Use `reissue` with the same arguments to explicitly send a new password and update an active account's classroom assignment; this invalidates existing sessions and pending codes. `notify` sends a link reminder without changing the password. `revoke` disables access. Each action uses the private configuration and sends mail only when explicitly invoked. See [operations](docs/OPERATIONS.md) for the commands and recovery behavior.
 
-Leave `smtp.teamInbox` empty to send login codes to the invited account. Setting it explicitly routes codes to a school-team mailbox for approval instead; the login page shows that destination. Codes expire after five minutes, and authenticated sessions last 30 minutes. The server chooses the camera from the account on every media request. Verification emails show a selectable code; the portal offers **Paste code** with a manual-paste fallback. Gmail decides whether its own copy-code card appears.
+Leave `smtp.teamInbox` empty to send login codes to the invited account. Setting it explicitly routes codes to a school-team mailbox for approval instead; the login page shows that destination. Codes expire after five minutes, and authenticated sessions last 30 minutes. The server chooses the camera from the account on every media request. Verification emails show a selectable code and an **Open code** button leading to an Orion **Copy code** page; the portal offers **Paste code** with a manual-paste fallback. Gmail decides whether its own copy-code card appears.
 
 ## Verification
 

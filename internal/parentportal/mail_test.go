@@ -8,12 +8,15 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/mail"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBrandedEmailAlternatives(t *testing.T) {
-	body := "Verification code: 123456\nAccount: test@example.test\nClassroom: <script>alert(1)</script>\n"
+	body := "Verification code: 123456\nOpen code: https://parents.example.test/classroom/code#code=123456&expires=2000000000\nAccount: test@example.test\nClassroom: <script>alert(1)</script>\n"
 	raw, id, err := emailMessage("sender@example.test", "parent@example.test", "Orchids Parent Connect | Verification code", body)
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +49,7 @@ func TestBrandedEmailAlternatives(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ = io.ReadAll(html)
-	for _, want := range []string{"ORCHIDS", "ORION", ">123456</code>", "Your verification code.", "&lt;script&gt;"} {
+	for _, want := range []string{"ORCHIDS", "ORION", ">123456</code>", "Your verification code.", "Open code &rarr;", "https://parents.example.test/classroom/code#code=123456&amp;expires=2000000000", "&lt;script&gt;"} {
 		if !strings.Contains(string(b), want) {
 			t.Fatal("missing HTML content ", want)
 		}
@@ -105,4 +108,39 @@ func TestSubpathMediaRedirect(t *testing.T) {
 	if w.Header().Get("Location") != "/classroom/media/index.m3u8?cookieCheck=1" {
 		t.Fatal("redirect escaped classroom path")
 	}
+}
+
+func TestOTPCopyLink(t *testing.T) {
+	f := setup(t)
+	f.s.cfg.BasePath = "/classroom"
+	password := invite(t, f, "parent@example.test", "camera-a")
+	challengeCookie, code := begin(t, f, "parent@example.test", password)
+	link, err := url.Parse(field(t, f.messages[len(f.messages)-1].body, "Open code"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.Scheme != "https" || link.Host != "parents.example.test" || link.Path != "/classroom/code" || link.RawQuery != "" {
+		t.Fatal("invalid copy URL")
+	}
+	fragment, err := url.ParseQuery(link.Fragment)
+	if err != nil || len(fragment) != 2 || fragment.Get("code") != code {
+		t.Fatal("invalid copy fragment")
+	}
+	expiry, err := strconv.ParseInt(fragment.Get("expires"), 10, 64)
+	if err != nil || time.Until(time.Unix(expiry, 0)) < 4*time.Minute || time.Until(time.Unix(expiry, 0)) > otpTTL {
+		t.Fatal("wrong copy expiry")
+	}
+	for _, asset := range []string{"/code", "/code.js"} {
+		w := request(f.s, "GET", asset, "")
+		requireStatus(t, w, 200)
+		if w.Header().Get("Referrer-Policy") != "no-referrer" || w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("unsafe copy page headers")
+		}
+		if strings.Contains(w.Body.String(), code) {
+			t.Fatal("server page contains OTP")
+		}
+	}
+	requireStatus(t, request(f.s, "GET", "/media/index.m3u8", ""), 401)
+	requireStatus(t, request(f.s, "POST", "/api/verify", `{"code":"`+code+`"}`), 401)
+	requireStatus(t, request(f.s, "POST", "/api/verify", `{"code":"`+code+`"}`, challengeCookie), 200)
 }
