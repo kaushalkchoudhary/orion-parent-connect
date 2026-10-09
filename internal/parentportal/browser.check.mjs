@@ -25,7 +25,36 @@ try {
   await page.getByLabel('Six-digit verification code').fill(code==='000000'?'111111':'000000');
   await page.getByRole('button',{name:'Open my classroom'}).click();
   await page.getByRole('alert').filter({hasText:'Code is incorrect'}).waitFor();
-  await page.getByLabel('Six-digit verification code').fill(code);
+  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+  for(const text of ['', '1234567', 'not a code']){
+    await page.evaluate(value=>navigator.clipboard.writeText(value),text);
+    await page.getByRole('button',{name:'Paste code',exact:true}).click();
+  await page.locator('#paste-code:not(:disabled)').waitFor();
+    await page.getByRole('alert').filter({hasText:'Copy the six-digit code'}).waitFor();
+  }
+  await page.evaluate(()=>navigator.clipboard.writeText('00 12-34'));
+  await page.getByRole('button',{name:'Paste code',exact:true}).click();
+  await page.locator('#paste-code:not(:disabled)').waitFor();
+  assert.equal(await page.locator('#otp').inputValue(),'001234');
+  await page.evaluate(()=>{window.originalReadText=navigator.clipboard.readText;Object.defineProperty(navigator.clipboard,'readText',{configurable:true,value:()=>Promise.reject(new Error('denied'))})});
+  await page.getByRole('button',{name:'Paste code',exact:true}).click();
+  await page.locator('#paste-code:not(:disabled)').waitFor();
+  await page.getByRole('alert').filter({hasText:'Paste the code into the field'}).waitFor();
+  await page.evaluate(()=>Object.defineProperty(navigator.clipboard,'readText',{configurable:true,value:window.originalReadText}));
+  await page.locator('#otp').evaluate((input,value)=>{
+    const clipboardData=new DataTransfer();clipboardData.setData('text',value.split('').join(' '));
+    input.dispatchEvent(new ClipboardEvent('paste',{clipboardData,bubbles:true,cancelable:true}));
+  },code);
+  assert.equal(await page.locator('#otp').inputValue(),code);
+  await page.locator('#otp').fill('');
+  await page.evaluate(value=>navigator.clipboard.writeText(value),code);
+  await page.getByRole('button',{name:'Paste code',exact:true}).click();
+  await page.locator('#paste-code:not(:disabled)').waitFor();
+  assert.equal(await page.locator('#otp').inputValue(),code);
+  assert.equal((await page.request.get(origin+'/media/index.m3u8')).status(),401);
+  await page.setViewportSize({width:390,height:844});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('button',{name:'Open my classroom'}).click();
   await page.getByRole('heading',{name:'Test classroom · Bluebird'}).waitFor();
   let playing=false;
@@ -46,5 +75,5 @@ try {
   await page.reload();
   await page.getByRole('heading',{name:'Welcome back.'}).waitFor();
   assert.deepEqual(errors,[]);
-  console.log('PASS: subpath portal, invitation credentials, correct OTP destination, wrong-code handling, gated camera, synthetic HLS playback, mobile layout and logout.');
+  console.log('PASS: subpath portal, invitation credentials, correct OTP destination, wrong-code handling, clipboard paste and permission fallback, gated camera, synthetic HLS playback, mobile layout and logout.');
 }finally{await browser.close()}

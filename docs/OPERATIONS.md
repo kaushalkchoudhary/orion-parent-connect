@@ -184,6 +184,25 @@ For missing video, verify the relay's camera path, network reachability and code
 before changing the parent account. Never use a different classroom as an
 unannounced fallback.
 
+## Copying and pasting login codes
+
+Verification emails put one contiguous six-digit code first in the plain-text
+body and in a selectable HTML code block, with the subject "Verification code".
+Parents can copy it normally, then choose **Paste code** in the portal or paste
+into the existing code field. Spaces and hyphens are accepted as separators;
+leading zeroes are preserved. Pasting does not submit or verify automatically.
+Clipboard access is requested only when the parent clicks the button. If the
+browser denies it or lacks support, ordinary paste and typing remain available.
+
+The Gmail "Copy code" summary card is controlled by Gmail. Google's
+[email markup reference](https://developers.google.com/workspace/gmail/markup/reference)
+does not document a sender-controlled OTP copy action. Clear wording is a
+compatibility measure, not a guarantee that Gmail will show the card. No scripts,
+fake copy links, OTP-in-URL links, or unsupported schema are added to the email.
+The clipboard button uses the browser's
+[Clipboard readText API](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText)
+over HTTPS. Its permission behavior varies by browser.
+
 ## Update, backup and rollback
 
 Keep a private rollback directory outside the checkout. Before an update, save

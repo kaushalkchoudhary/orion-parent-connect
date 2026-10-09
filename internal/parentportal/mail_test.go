@@ -14,7 +14,7 @@ import (
 
 func TestBrandedEmailAlternatives(t *testing.T) {
 	body := "Verification code: 123456\nAccount: test@example.test\nClassroom: <script>alert(1)</script>\n"
-	raw, id, err := emailMessage("sender@example.test", "parent@example.test", "Orchids Parent Connect | Sign-in code", body)
+	raw, id, err := emailMessage("sender@example.test", "parent@example.test", "Orchids Parent Connect | Verification code", body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestBrandedEmailAlternatives(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ = io.ReadAll(html)
-	for _, want := range []string{"ORCHIDS", "ORION", "123456", "&lt;script&gt;"} {
+	for _, want := range []string{"ORCHIDS", "ORION", ">123456</code>", "Your verification code.", "&lt;script&gt;"} {
 		if !strings.Contains(string(b), want) {
 			t.Fatal("missing HTML content ", want)
 		}
@@ -79,6 +79,10 @@ func TestViewerOTPAndUpdatedLink(t *testing.T) {
 	}
 	if result.Destination != "parent@example.test" || result.TeamApproval {
 		t.Fatal("wrong UI destination")
+	}
+	otp := f.messages[1]
+	if otp.subject != "Orchids Parent Connect | Verification code" || !strings.HasPrefix(otp.body, "Verification code: ") || strings.Contains(otp.body, "Expires:") {
+		t.Fatal("OTP email should lead with one clearly labelled code, without a numeric timestamp")
 	}
 	if f.messages[1].to != "parent@example.test" {
 		t.Fatal("OTP sent to wrong inbox")

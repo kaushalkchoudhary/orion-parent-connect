@@ -6,3 +6,5 @@
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
 .powered .orion-mark{width:28px;height:28px;object-fit:contain}
+
+.otp-label{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:24px}.otp-label label{margin:0}.otp-label .text-button{width:auto;margin:0;padding:10px 0;min-height:44px;white-space:nowrap}

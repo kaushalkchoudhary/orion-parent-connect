@@ -43,6 +43,21 @@ $('login-form').addEventListener('submit',event=>{event.preventDefault();submit(
   const result=await api('/api/login',{email:$('email').value,password:$('password').value});$('password').value='';$('login-form').hidden=true;$('otp-form').hidden=false;$('step-label').textContent='ONE LAST STEP';$('otp-destination').textContent=result.destination;$('otp-description').textContent=result.teamApproval?'Your school team has been emailed a code. Contact them and enter the code they share with you.':'We have emailed your sign-in code. Enter it below to open your classroom.';$('otp').focus();
   clearInterval(codeTimer);const update=()=>{const left=Math.max(0,Math.ceil((new Date(result.expiresAt)-Date.now())/1000));$('code-expiry').textContent=left?`Code expires in ${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`:'This code has expired. Go back and sign in again.';if(!left)clearInterval(codeTimer)};update();codeTimer=setInterval(update,1000);
 })});
+function pasteCode(text){
+  const code=text.replace(/[\s-]/g,'');
+  if(!/^[0-9]{6}$/.test(code))return false;
+  $('otp').value=code;$('auth-error').textContent='';$('otp').focus();return true;
+}
+$('otp').addEventListener('paste',event=>{
+  if(pasteCode(event.clipboardData?.getData('text')||''))event.preventDefault();
+});
+$('paste-code').addEventListener('click',async()=>{
+  const button=$('paste-code');button.disabled=true;
+  try{
+    if(!pasteCode(await navigator.clipboard.readText()))$('auth-error').textContent='Copy the six-digit code from your email first.';
+  }catch{$('auth-error').textContent='Paste the code into the field, or type the six digits.'}
+  finally{button.disabled=false;$('otp').focus()}
+});
 $('otp-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{await api('/api/verify',{code:$('otp').value});await showClassroom()})});
 async function logout(){await api('/api/logout',{});signIn();$('email').focus()}
 $('restart').addEventListener('click',async()=>{try{await logout()}catch(error){$('auth-error').textContent=error.message}});
