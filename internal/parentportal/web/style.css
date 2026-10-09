@@ -8,5 +8,3 @@
 .powered .orion-mark{width:28px;height:28px;object-fit:contain}
 
 .otp-label{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:24px}.otp-label label{margin:0}.otp-label .text-button{width:auto;margin:0;padding:10px 0;min-height:44px;white-space:nowrap}
-
-.copy-page{min-height:calc(100vh - 100px);padding:56px 24px;display:grid;place-items:center}.copy-card{width:100%;max-width:460px;background:#fffefd;border:1px solid var(--line);border-radius:14px;padding:36px}.copy-card .eyebrow{color:var(--pink);font-size:9px}.copy-value{font:600 34px monospace;letter-spacing:6px;text-align:center;background:#f8edf2;user-select:all}.copy-status{margin:22px 0 0}.copy-card .form-note{margin-top:24px}@media(max-width:480px){.copy-page{padding:28px 16px;min-height:calc(100vh - 86px)}.copy-card{padding:26px 22px}.copy-value{font-size:30px}}

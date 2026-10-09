@@ -288,8 +288,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		recipient = a.Email
 		instruction = "Enter this code in the browser where you signed in. Do not share it with anyone."
 	}
-	codeURL := fmt.Sprintf("%s%s/code#code=%s&expires=%d", s.cfg.Origin, s.cfg.BasePath, code, c.ExpiresAt.Unix())
-	body := fmt.Sprintf("Verification code: %s\n\nCopy this code and paste it into Orchids Parent Connect to sign in. It expires in 5 minutes and can be used only once.\n\nOpen code: %s\n\nAccount: %s\nClassroom: %s\n\n%s If you did not request access, ignore this email.\n", code, codeURL, a.Email, a.ClassName, instruction)
+	body := fmt.Sprintf("Verification code: %s\n\nCopy this code and paste it into Orchids Parent Connect to sign in. It expires in 5 minutes and can be used only once.\n\nAccount: %s\nClassroom: %s\n\n%s If you did not request access, ignore this email.\n", code, a.Email, a.ClassName, instruction)
 	if err := s.send(r.Context(), recipient, "Orchids Parent Connect | Verification code", body); err != nil {
 		_ = s.db.Where("hash = ?", c.Hash).Delete(&challenge{}).Error
 		fail(w, 503, "The verification email could not be delivered. Try again in one minute.")

@@ -5,8 +5,7 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const origin=process.env.PARENT_TEST_ORIGIN;
 const browser=await chromium.launch({channel:'chrome',headless:true});
 try {
-  const context=await browser.newContext({viewport:{width:1440,height:1000}});
-  const page=await context.newPage();
+  const page=await browser.newPage({viewport:{width:1440,height:1000}});
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(origin+'/');
   await page.getByRole('heading',{name:'Welcome back.'}).waitFor();
@@ -22,35 +21,6 @@ try {
   assert.equal(mail.to,process.env.PARENT_TEST_OTP_TO);
   assert(!mail.body.includes(process.env.PARENT_TEST_PASSWORD));
   const code=mail.body.match(/^Verification code: (\d{6})$/m)[1];
-  const copyURL=mail.body.match(/^Open code: (.+)$/m)[1];
-  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
-  const copyPage=await page.context().newPage();
-  const copyRequests=[];copyPage.on('request',r=>copyRequests.push(r.url()));
-  await copyPage.goto(copyURL);
-  assert.equal(copyPage.url(),origin+'/code');
-  assert.equal(await copyPage.locator('#copy-value').inputValue(),code);
-  await copyPage.getByRole('button',{name:'Copy code',exact:true}).click();
-  await copyPage.getByRole('status').filter({hasText:'Copied!'}).waitFor();
-  assert.equal(await copyPage.evaluate(()=>navigator.clipboard.readText()),code);
-  assert(copyRequests.every(url=>!url.includes('#')&&!url.includes('code=')));
-  assert.equal((await copyPage.request.get(origin+'/media/index.m3u8')).status(),401);
-  await copyPage.setViewportSize({width:390,height:844});
-  assert(await copyPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  await copyPage.evaluate(()=>Object.defineProperty(navigator.clipboard,'writeText',{configurable:true,value:()=>Promise.reject(new Error('denied'))}));
-  await copyPage.getByRole('button',{name:'Copy code',exact:true}).click();
-  await copyPage.getByRole('status').filter({hasText:'Copy the selected code'}).waitFor();
-  assert(await copyPage.locator('#copy-value').evaluate(el=>el.selectionEnd-el.selectionStart===6));
-  await copyPage.goto(origin+'/code#code=001234&expires='+Math.floor(Date.now()/1000+2));
-  assert.equal(await copyPage.locator('#copy-value').inputValue(),'001234');
-  await copyPage.getByRole('status').filter({hasText:'This code has expired'}).waitFor();
-  assert(await copyPage.getByRole('button',{name:'Copy code',exact:true}).isDisabled());
-  for(const fragment of ['','code=12345&expires=2000000000','code=123456&expires=bad','code=%3Cscript%3E&expires=2000000000']){
-    await copyPage.goto(origin+'/code#'+fragment);
-    await copyPage.getByRole('status').filter({hasText:'This link is incomplete'}).waitFor();
-    assert(await copyPage.getByRole('button',{name:'Copy code',exact:true}).isDisabled());
-  }
-  await copyPage.close();
-  await page.bringToFront();
   assert.equal((await page.request.get(origin+'/media/index.m3u8')).status(),401);
   await page.getByLabel('Six-digit verification code').fill(code==='000000'?'111111':'000000');
   await page.getByRole('button',{name:'Open my classroom'}).click();
@@ -105,5 +75,5 @@ try {
   await page.reload();
   await page.getByRole('heading',{name:'Welcome back.'}).waitFor();
   assert.deepEqual(errors,[]);
-  console.log('PASS: subpath portal, invitation credentials, correct OTP destination, wrong-code handling, email copy page, clipboard copy/paste, expiry and permission fallback, gated camera, synthetic HLS playback, mobile layout and logout.');
+  console.log('PASS: subpath portal, invitation credentials, correct OTP destination, wrong-code handling, clipboard paste and permission fallback, gated camera, synthetic HLS playback, mobile layout and logout.');
 }finally{await browser.close()}

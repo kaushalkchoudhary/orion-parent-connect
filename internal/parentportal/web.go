@@ -18,12 +18,6 @@ func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 	case "/":
 		name = "index.html"
 		contentType = "text/html; charset=utf-8"
-	case "/code":
-		name = "code.html"
-		contentType = "text/html; charset=utf-8"
-	case "/code.js":
-		name = "code.js"
-		contentType = "text/javascript; charset=utf-8"
 	case "/app.js":
 		name = "app.js"
 		contentType = "text/javascript; charset=utf-8"
