@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import {join} from 'node:path';
+const artifacts=process.env.PARENT_TEST_ARTIFACTS;
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const origin=process.env.PARENT_TEST_ORIGIN;
+const browser=await chromium.launch({channel:'chrome',headless:true});
+try {
+  const page=await browser.newPage({viewport:{width:1440,height:1000}});
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(origin+'/');
+  await page.getByRole('heading',{name:'Welcome back.'}).waitFor();
+  assert.equal((await page.request.get(origin+'/media/index.m3u8')).status(),401);
+  await page.screenshot({path:join(artifacts,'parent-portal-login.png'),fullPage:true});
+  await page.getByLabel('Email address').fill('test.parent@example.test');
+  await page.getByLabel('Password',{exact:true}).fill(process.env.PARENT_TEST_PASSWORD);
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByRole('heading',{name:'A little verification.'}).waitFor();
+  await page.locator('#otp-destination').filter({hasText:process.env.PARENT_TEST_OTP_TO}).waitFor();
+  await page.screenshot({path:join(artifacts,'parent-portal-otp.png'),fullPage:true});
+  const mail=await (await page.request.get(origin+'/test-mailbox')).json();
+  assert.equal(mail.to,process.env.PARENT_TEST_OTP_TO);
+  assert(!mail.body.includes(process.env.PARENT_TEST_PASSWORD));
+  const code=mail.body.match(/^Verification code: (\d{6})$/m)[1];
+  assert.equal((await page.request.get(origin+'/media/index.m3u8')).status(),401);
+  await page.getByLabel('Six-digit verification code').fill(code==='000000'?'111111':'000000');
+  await page.getByRole('button',{name:'Open my classroom'}).click();
+  await page.getByRole('alert').filter({hasText:'Code is incorrect'}).waitFor();
+  await page.getByLabel('Six-digit verification code').fill(code);
+  await page.getByRole('button',{name:'Open my classroom'}).click();
+  await page.getByRole('heading',{name:'Test classroom · Bluebird'}).waitFor();
+  let playing=false;
+  for(let attempt=0;attempt<80;attempt++){
+    playing=await page.locator('video').evaluate(v=>v.videoWidth===640&&v.currentTime>2);
+    if(playing)break;
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
+  assert(playing,'The synthetic classroom video must play');
+  assert.equal((await page.request.get(origin+'/media/camera-b/index.m3u8')).status(),404);
+  await page.screenshot({path:join(artifacts,'parent-portal-classroom.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.screenshot({path:join(artifacts,'parent-portal-mobile.png'),fullPage:true});
+  await page.getByRole('button',{name:'Sign out'}).click();
+  await page.getByRole('heading',{name:'Welcome back.'}).waitFor();
+  assert.equal((await page.request.get(origin+'/media/index.m3u8')).status(),401);
+  await page.reload();
+  await page.getByRole('heading',{name:'Welcome back.'}).waitFor();
+  assert.deepEqual(errors,[]);
+  console.log('PASS: subpath portal, invitation credentials, correct OTP destination, wrong-code handling, gated camera, synthetic HLS playback, mobile layout and logout.');
+}finally{await browser.close()}

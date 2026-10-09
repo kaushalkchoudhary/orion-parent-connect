@@ -1,0 +1,31 @@
+# Runtime state and private machine configuration
+/bin/
+/var/
+/backups/
+/config/portal.json
+/config/smtp-password
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.pem
+*.key
+
+# Local checks and generated output
+/node_modules/
+/artifacts/
+coverage.out
+*.test
+*.log
+*.bak
+.DS_Store
+._*
+
+# Camera media is runtime data, never source
+*.mp4
+*.ts
+*.m3u8
+*.m4s

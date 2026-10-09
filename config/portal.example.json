@@ -1,0 +1,16 @@
+{
+  "origin": "https://portal.example.com",
+  "basePath": "/classroom",
+  "listen": "127.0.0.1:8096",
+  "dbPath": "/var/lib/orion-parent/portal.db",
+  "hlsOrigin": "https://relay.example.com",
+  "hlsJS": "/opt/wantara/parent-portal/hls.min.js",
+  "smtp": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "username": "sender@example.com",
+    "passwordFile": "/etc/orion-parent/smtp-password",
+    "from": "sender@example.com",
+    "teamInbox": ""
+  }
+}

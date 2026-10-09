@@ -1,0 +1,11 @@
+# Optional compatibility listener only; do not install for a fresh deployment.
+# Preserve old invitations, redirecting to the standard HTTPS portal address.
+server {
+    listen 8443 ssl;
+    listen [::]:8443 ssl;
+    server_name portal.example.com;
+    ssl_certificate /etc/letsencrypt/live/portal.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/portal.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    return 302 https://portal.example.com/classroom/;
+}

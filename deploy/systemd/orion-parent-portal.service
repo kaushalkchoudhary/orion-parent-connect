@@ -1,0 +1,21 @@
+[Unit]
+Description=Orion Classroom parent portal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=orion-parent
+Group=orion-parent
+ExecStart=/opt/wantara/parent-portal/parent-portal -config /etc/orion-parent/portal.json
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/orion-parent
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
