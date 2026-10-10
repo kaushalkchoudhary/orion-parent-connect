@@ -65,10 +65,7 @@ try {
   }
   assert(playing,'The synthetic classroom video must play');
   assert.equal(await page.locator('video').evaluate(v=>v.controls),false);
-  await page.getByRole('button',{name:'Pause video',exact:true}).click();
-  assert(await page.locator('video').evaluate(v=>v.paused));
-  await page.getByRole('button',{name:'Resume live video',exact:true}).click();
-  await page.waitForFunction(()=>!document.getElementById('video').paused);
+  assert.equal(await page.locator('#toggle-play').count(),0);
   await page.getByRole('button',{name:'Fullscreen',exact:true}).click();
   await page.waitForFunction(()=>document.fullscreenElement?.id==='viewer');
   await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();

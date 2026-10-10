@@ -53,7 +53,7 @@ sudo -u orion-parent /opt/wantara/parent-portal/parent-portal \
 
 Leave `smtp.teamInbox` empty to send login codes to the invited account. Setting it explicitly routes codes to a school-team mailbox for approval instead; the login page shows that destination. Codes expire after five minutes, and authenticated sessions last 30 minutes. The server chooses the camera from the account on every media request. Verification emails show a selectable code; the portal offers **Paste code** with a manual-paste fallback. Gmail decides whether its own copy-code card appears.
 
-The live player shows status, pause/resume and fullscreen controls without a playback timer or seek bar.
+The live player shows status and a fullscreen control without a playback timer or seek bar.
 
 ## Verification
 

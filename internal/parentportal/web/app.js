@@ -64,18 +64,6 @@ $('restart').addEventListener('click',async()=>{try{await logout()}catch(error){
 $('logout').addEventListener('click',async()=>{try{await logout()}catch(error){$('view-error').textContent=error.message}});
 showClassroom().catch(error=>{signIn(error.status===401?'':error.message)});
 
-$('video').addEventListener('play',()=>{$('toggle-play').textContent='Pause video'});
-$('video').addEventListener('pause',()=>{$('toggle-play').textContent='Resume live video';if(!$('classroom').hidden){$('stream-status').textContent='Paused';$('stream-status').className=''}});
-$('toggle-play').addEventListener('click',async()=>{
-  const video=$('video');
-  if(!video.paused){video.pause();return}
-  try{
-    const live=player?.liveSyncPosition;
-    if(Number.isFinite(live))video.currentTime=live;
-    else if(video.duration===Infinity&&video.seekable.length)video.currentTime=Math.max(video.seekable.start(0),video.seekable.end(video.seekable.length-1)-1);
-    await video.play();
-  }catch{videoUnavailable()}
-});
 $('fullscreen').addEventListener('click',async()=>{
   try{
     if(document.fullscreenElement)await document.exitFullscreen();
