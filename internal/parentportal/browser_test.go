@@ -60,7 +60,6 @@ func TestBrowserFlow(t *testing.T) {
 	if err := s.Invite(context.Background(), "test.parent@example.test", "Test classroom · Bluebird", "camera-a"); err != nil {
 		t.Fatal(err)
 	}
-	password := field(t, outbox[0].body, "Password")
 	h := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// This mailbox exists only inside this ephemeral loopback test, never in the service.
 		if r.URL.Path == "/classroom/test-mailbox" {
@@ -75,7 +74,7 @@ func TestBrowserFlow(t *testing.T) {
 	go h.Serve(listener)
 	defer h.Close()
 	cmd = exec.Command("node", "browser.check.mjs")
-	cmd.Env = append(os.Environ(), "PARENT_TEST_ARTIFACTS="+dir, "PARENT_TEST_ORIGIN="+origin+"/classroom", "PARENT_TEST_PASSWORD="+password, "PARENT_TEST_OTP_TO="+otpTo)
+	cmd.Env = append(os.Environ(), "PARENT_TEST_ARTIFACTS="+dir, "PARENT_TEST_ORIGIN="+origin+"/classroom", "PARENT_TEST_OTP_TO="+otpTo)
 	if b, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("browser: %v\n%s", err, b)
 	} else {

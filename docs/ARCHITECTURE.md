@@ -27,12 +27,12 @@ The application has no dependency on another repository's source tree, frontend 
 
 ## Authentication lifecycle
 
-1. An operator invites an account with an email address, classroom label and relay camera path. The service generates a random password, stores its bcrypt hash and mails the credentials. A failed send leaves no active account.
-2. A correct password creates a browser-bound challenge and sends a six-digit code. The destination is the account email unless `smtp.teamInbox` explicitly selects team approval.
+1. An operator invites an account with an email address, classroom label and relay camera path. The service mails the portal link and email-only sign-in instructions. A failed send leaves no active account.
+2. An active invited email address creates a browser-bound challenge and sends a six-digit code. The destination is the account email unless `smtp.teamInbox` explicitly selects team approval.
 3. Verification consumes the challenge atomically and creates a 30-minute session. Other sessions for that account are invalidated.
 4. Each account and media request checks the active account and session expiry. Logout removes the current session; revocation disables the account and removes its sessions and challenges.
 
-`reissue` replaces the password and camera assignment for an existing active account, sends a combined credentials email and invalidates sessions and challenges in the same database transaction. Sending failure rolls back the change. SMTP acceptance followed by a database failure is reported for operator repair because email delivery cannot be rolled back.
+`reissue` replaces the camera assignment for an existing active account, sends an access email and invalidates sessions and challenges in the same database transaction. Sending failure rolls back the change. SMTP acceptance followed by a database failure is reported for operator repair because email delivery cannot be rolled back.
 
 ## Media flow
 
@@ -44,6 +44,6 @@ The portal does not ingest RTSP directly, transcode, record or provide a camera 
 
 ## Persistence and process model
 
-SQLite stores account password hashes, assignments, login lockouts, code challenges and sessions. The process uses one database connection. Per-IP login throttling is in memory and resets on restart; account lockouts and code cooldowns persist. Run a single service instance with its private state directory. Multi-instance operation and shared rate limiting are not implemented.
+SQLite stores accounts, assignments, code challenges and sessions. Legacy password/lockout columns remain unused for database compatibility. The process uses one database connection. Per-IP login throttling is in memory and resets on restart; code cooldowns persist. Run a single service instance with its private state directory. Multi-instance operation and shared rate limiting are not implemented.
 
 Tests use temporary databases and fake mail senders. The optional browser test adds a generated HLS fixture and a mailbox endpoint only to its test handler. No mailbox/debug route is part of the production service.

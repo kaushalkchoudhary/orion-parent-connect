@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/bcrypt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -109,18 +108,21 @@ func invite(t *testing.T, f *fixture, email, camera string) string {
 	if err := f.s.Invite(context.Background(), email, "Test classroom", camera); err != nil {
 		t.Fatal(err)
 	}
-	return field(t, f.messages[len(f.messages)-1].body, "Password")
+	if strings.Contains(f.messages[len(f.messages)-1].body, "Password:") {
+		t.Fatal("password in invitation")
+	}
+	return email
 }
-func begin(t *testing.T, f *fixture, email, password string) (*http.Cookie, string) {
+func begin(t *testing.T, f *fixture, email string) (*http.Cookie, string) {
 	t.Helper()
-	b, _ := json.Marshal(map[string]string{"email": email, "password": password})
+	b, _ := json.Marshal(map[string]string{"email": email})
 	w := request(f.s, "POST", "/api/login", string(b))
 	requireStatus(t, w, 200)
 	return cookie(t, w, f.s.cookieName("challenge")), field(t, f.messages[len(f.messages)-1].body, "Verification code")
 }
-func authenticate(t *testing.T, f *fixture, email, password string) *http.Cookie {
+func authenticate(t *testing.T, f *fixture, email string) *http.Cookie {
 	t.Helper()
-	c, code := begin(t, f, email, password)
+	c, code := begin(t, f, email)
 	w := request(f.s, "POST", "/api/verify", `{"code":"`+code+`"}`, c)
 	requireStatus(t, w, 200)
 	return cookie(t, w, f.s.cookieName("session"))
@@ -128,7 +130,7 @@ func authenticate(t *testing.T, f *fixture, email, password string) *http.Cookie
 
 func TestInvitationAndOTPRequired(t *testing.T) {
 	f := setup(t)
-	password := invite(t, f, "parent@example.test", "camera-a")
+	invite(t, f, "parent@example.test", "camera-a")
 	if f.messages[0].to != "parent@example.test" || !strings.Contains(f.messages[0].body, f.s.cfg.Origin) {
 		t.Fatal("invitation destination or link missing")
 	}
@@ -139,11 +141,11 @@ func TestInvitationAndOTPRequired(t *testing.T) {
 		t.Fatal("duplicate invitation")
 	}
 	requireStatus(t, request(f.s, "GET", "/media/index.m3u8", ""), 401)
-	c, code := begin(t, f, "parent@example.test", password)
+	c, code := begin(t, f, "parent@example.test")
 	if f.messages[1].to != "team@example.test" {
 		t.Fatal("OTP did not go to team")
 	}
-	if strings.Contains(f.messages[1].body, password) {
+	if strings.Contains(f.messages[1].body, "Password:") {
 		t.Fatal("password resent with OTP")
 	}
 	if !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteStrictMode || c.Domain != "" {
@@ -157,8 +159,8 @@ func TestInvitationAndOTPRequired(t *testing.T) {
 	requireStatus(t, request(f.s, "POST", "/api/verify", `{"code":"`+code+`"}`, c), 401)
 	var a Account
 	f.s.db.First(&a)
-	if a.PasswordHash == password || len(a.PasswordHash) < 50 {
-		t.Fatal("password not hashed")
+	if a.PasswordHash != "" {
+		t.Fatal("new account has a password")
 	}
 	var ss session
 	f.s.db.First(&ss)
@@ -169,8 +171,8 @@ func TestInvitationAndOTPRequired(t *testing.T) {
 
 func TestCameraIsolationAndLogout(t *testing.T) {
 	f := setup(t)
-	a := authenticate(t, f, "a@example.test", invite(t, f, "a@example.test", "camera-a"))
-	b := authenticate(t, f, "b@example.test", invite(t, f, "b@example.test", "camera-b"))
+	a := authenticate(t, f, invite(t, f, "a@example.test", "camera-a"))
+	b := authenticate(t, f, invite(t, f, "b@example.test", "camera-b"))
 	for _, c := range []*http.Cookie{a, b} {
 		w := request(f.s, "GET", "/media/index.m3u8?camera=camera-other&url=http://outside.invalid", "", c)
 		requireStatus(t, w, 200)
@@ -203,7 +205,7 @@ func TestOTPAttemptsExpiryAndConcurrentReplay(t *testing.T) {
 	for _, mode := range []string{"attempts", "expiry", "concurrent"} {
 		t.Run(mode, func(t *testing.T) {
 			f := setup(t)
-			c, code := begin(t, f, "parent@example.test", invite(t, f, "parent@example.test", "camera-a"))
+			c, code := begin(t, f, invite(t, f, "parent@example.test", "camera-a"))
 			switch mode {
 			case "attempts":
 				wrong := "000000"
@@ -245,11 +247,11 @@ func TestOTPAttemptsExpiryAndConcurrentReplay(t *testing.T) {
 
 func TestSessionExpiryAndNewLogin(t *testing.T) {
 	f := setup(t)
-	password := invite(t, f, "parent@example.test", "camera-a")
-	first := authenticate(t, f, "parent@example.test", password)
+	invite(t, f, "parent@example.test", "camera-a")
+	first := authenticate(t, f, "parent@example.test")
 	now := time.Now().Add(61 * time.Second)
 	f.s.now = func() time.Time { return now }
-	c, code := begin(t, f, "parent@example.test", password)
+	c, code := begin(t, f, "parent@example.test")
 	requireStatus(t, request(f.s, "GET", "/api/me", "", c), 401)
 	w := request(f.s, "POST", "/api/verify", `{"code":"`+code+`"}`, c)
 	requireStatus(t, w, 200)
@@ -271,9 +273,9 @@ func TestMailFailureAndRateLimits(t *testing.T) {
 		t.Fatal("failed invitation left account")
 	}
 	f.failMail = false
-	password := invite(t, f, "parent@example.test", "camera-a")
+	invite(t, f, "parent@example.test", "camera-a")
 	f.failMail = true
-	b, _ := json.Marshal(map[string]string{"email": "parent@example.test", "password": password})
+	b, _ := json.Marshal(map[string]string{"email": "parent@example.test"})
 	w := request(f.s, "POST", "/api/login", string(b))
 	requireStatus(t, w, 503)
 	if len(w.Result().Cookies()) > 0 {
@@ -285,9 +287,9 @@ func TestMailFailureAndRateLimits(t *testing.T) {
 	}
 	requireStatus(t, request(f.s, "POST", "/api/login", string(b)), 429)
 	for i := 0; i < 8; i++ {
-		requireStatus(t, request(f.s, "POST", "/api/login", `{"email":"unknown@example.test","password":"wrong"}`), 401)
+		requireStatus(t, request(f.s, "POST", "/api/login", `{"email":"unknown@example.test"}`), 401)
 	}
-	requireStatus(t, request(f.s, "POST", "/api/login", `{"email":"unknown@example.test","password":"wrong"}`), 429)
+	requireStatus(t, request(f.s, "POST", "/api/login", `{"email":"unknown@example.test"}`), 429)
 }
 
 func TestOriginAndRequestValidation(t *testing.T) {
@@ -318,32 +320,41 @@ func TestOriginAndRequestValidation(t *testing.T) {
 	}
 }
 
-func TestAccountLockSurvivesRestart(t *testing.T) {
+func TestAccountCooldownSurvivesRestart(t *testing.T) {
 	f := setup(t)
-	password := invite(t, f, "parent@example.test", "camera-a")
-	for i := 0; i < 5; i++ {
-		requireStatus(t, request(f.s, "POST", "/api/login", `{"email":"parent@example.test","password":"wrong"}`), 401)
-	}
-	// A new process (and fresh IP limiter) must still respect the stored account lock.
+	invite(t, f, "parent@example.test", "camera-a")
+	begin(t, f, "parent@example.test")
 	restarted, err := New(f.s.cfg, f.s.send)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer restarted.Close()
-	b, _ := json.Marshal(map[string]string{"email": "parent@example.test", "password": password})
-	requireStatus(t, request(restarted, "POST", "/api/login", string(b)), 401)
-	now := time.Now().Add(16 * time.Minute)
-	restarted.now = func() time.Time { return now }
-	requireStatus(t, request(restarted, "POST", "/api/login", string(b)), 200)
+	body := `{"email":"parent@example.test"}`
+	requireStatus(t, request(restarted, "POST", "/api/login", body), 429)
+	restarted.now = func() time.Time { return time.Now().Add(61 * time.Second) }
+	requireStatus(t, request(restarted, "POST", "/api/login", body), 200)
 }
 
-func TestReissueCredentials(t *testing.T) {
+func TestOnlyInvitedActiveEmailsCanRequestOTP(t *testing.T) {
+	f := setup(t)
+	invite(t, f, "parent@example.test", "camera-a")
+	requireStatus(t, request(f.s, "POST", "/api/login", `{"email":"unknown@example.test"}`), 401)
+	if err := f.s.Revoke("parent@example.test"); err != nil {
+		t.Fatal(err)
+	}
+	requireStatus(t, request(f.s, "POST", "/api/login", `{"email":"parent@example.test"}`), 401)
+	if len(f.messages) != 1 {
+		t.Fatal("sent OTP for unavailable account")
+	}
+}
+
+func TestReissueAccess(t *testing.T) {
 	f := setup(t)
 	email := "parent@example.test"
-	old := invite(t, f, email, "camera-a")
-	sess := authenticate(t, f, email, old)
+	invite(t, f, email, "camera-a")
+	sess := authenticate(t, f, email)
 	f.s.now = func() time.Time { return time.Now().Add(2 * time.Minute) }
-	pending, code := begin(t, f, email, old)
+	pending, code := begin(t, f, email)
 	f.failMail = true
 	if err := f.s.Reissue(context.Background(), email, "K1 A", "camera-b"); err == nil {
 		t.Fatal("failed send succeeded")
@@ -351,7 +362,7 @@ func TestReissueCredentials(t *testing.T) {
 	requireStatus(t, request(f.s, "GET", "/api/me", "", sess), 200)
 	var before Account
 	f.s.db.First(&before)
-	if before.Camera != "camera-a" || bcrypt.CompareHashAndPassword([]byte(before.PasswordHash), []byte(old)) != nil {
+	if before.Camera != "camera-a" {
 		t.Fatal("failed send changed existing access")
 	}
 	f.failMail = false
@@ -362,15 +373,12 @@ func TestReissueCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 	mail := f.messages[len(f.messages)-1]
-	password := field(t, mail.body, "Password")
-	if password == old || !strings.Contains(mail.body, "Portal: https://parents.example.test/") || field(t, mail.body, "Classroom") != "K1 A" {
+	if strings.Contains(mail.body, "Password:") || !strings.Contains(mail.body, "Portal: https://parents.example.test/") || field(t, mail.body, "Classroom") != "K1 A" {
 		t.Fatal("incomplete credential email")
 	}
 	requireStatus(t, request(f.s, "GET", "/api/me", "", sess), 401)
 	requireStatus(t, request(f.s, "POST", "/api/verify", `{"code":"`+code+`"}`, pending), 401)
-	b, _ := json.Marshal(map[string]string{"email": email, "password": old})
-	requireStatus(t, request(f.s, "POST", "/api/login", string(b)), 401)
-	fresh := authenticate(t, f, email, password)
+	fresh := authenticate(t, f, email)
 	requireStatus(t, request(f.s, "GET", "/media/index.m3u8", "", fresh), 200)
 	if f.paths[len(f.paths)-1] != "/camera-b/index.m3u8" {
 		t.Fatal("wrong reassigned camera")
@@ -400,8 +408,8 @@ func TestRelaySessionStaysBoundToParent(t *testing.T) {
 	}))
 	defer upstream.Close()
 	f.s.upstream, _ = url.Parse(upstream.URL)
-	a := authenticate(t, f, "a@example.test", invite(t, f, "a@example.test", "camera-a"))
-	b := authenticate(t, f, "b@example.test", invite(t, f, "b@example.test", "camera-b"))
+	a := authenticate(t, f, invite(t, f, "a@example.test", "camera-a"))
+	b := authenticate(t, f, invite(t, f, "b@example.test", "camera-b"))
 	w := request(f.s, "GET", "/media/index.m3u8", "", a)
 	requireStatus(t, w, 200)
 	if w.Header().Get("Set-Cookie") != "" {
@@ -409,4 +417,17 @@ func TestRelaySessionStaysBoundToParent(t *testing.T) {
 	}
 	requireStatus(t, request(f.s, "GET", "/media/main_stream.m3u8", "", a), 200)
 	requireStatus(t, request(f.s, "GET", "/media/main_stream.m3u8", "", b), 401)
+}
+
+func TestLegacyAccountUsesEmailOTP(t *testing.T) {
+	f := setup(t)
+	invite(t, f, "parent@example.test", "camera-a")
+	if err := f.s.db.Model(&Account{}).Where("email = ?", "parent@example.test").Updates(map[string]any{"password_hash": "legacy-unused-hash", "failed_logins": 5, "locked_until": time.Now().Add(time.Hour)}).Error; err != nil {
+		t.Fatal(err)
+	}
+	c, code := begin(t, f, "  PARENT@example.test  ")
+	requireStatus(t, request(f.s, "GET", "/media/index.m3u8", "", c), 401)
+	w := request(f.s, "POST", "/api/verify", `{"code":"`+code+`"}`, c)
+	requireStatus(t, w, 200)
+	requireStatus(t, request(f.s, "GET", "/media/index.m3u8", "", cookie(t, w, f.s.cookieName("session"))), 200)
 }

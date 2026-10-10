@@ -40,8 +40,9 @@ type Config struct {
 }
 
 type Account struct {
-	ID           uint   `gorm:"primaryKey"`
-	Email        string `gorm:"uniqueIndex;not null"`
+	ID    uint   `gorm:"primaryKey"`
+	Email string `gorm:"uniqueIndex;not null"`
+	// Legacy fields retained for compatibility; email-and-OTP login does not use passwords.
 	PasswordHash string
 	ClassName    string
 	Camera       string
@@ -80,7 +81,6 @@ type Server struct {
 	mu        sync.Mutex
 	limits    map[string]limit
 	now       func() time.Time
-	dummyHash string
 	transport *http.Transport
 }
 
@@ -140,12 +140,7 @@ func New(cfg Config, send SendFunc) (*Server, error) {
 			return nil, err
 		}
 	}
-	dummy, err := passwordHash("unused-placeholder-password")
-	if err != nil {
-		sqlDB.Close()
-		return nil, err
-	}
-	return &Server{cfg: cfg, db: db, send: send, upstream: upstream, secure: origin.Scheme == "https", limits: map[string]limit{}, now: time.Now, dummyHash: dummy,
+	return &Server{cfg: cfg, db: db, send: send, upstream: upstream, secure: origin.Scheme == "https", limits: map[string]limit{}, now: time.Now,
 		transport: &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext, ResponseHeaderTimeout: 15 * time.Second, MaxIdleConns: 32, IdleConnTimeout: 30 * time.Second}}, nil
 }
 

@@ -140,15 +140,15 @@ sudo -u orion-parent /opt/wantara/parent-portal/parent-portal \
 ```
 
 `invite` creates a new account and sends one email containing the portal link,
-account email and a random password. It refuses an existing account. A mail
+account email and classroom label, with email-and-OTP sign-in instructions. It refuses an existing account. A mail
 failure does not leave an active account.
 
 `reissue` takes the same arguments and deliberately replaces an existing active
-account's password and camera assignment. It emails the new credentials and link,
+account's camera assignment. It emails the access instructions and link,
 and revokes prior sessions and pending OTPs in the same database transaction. If
-sending fails, the old password and assignment remain. SMTP acceptance followed
+sending fails, the old assignment remains. SMTP acceptance followed
 by a database commit failure needs operator repair; the reported error must not
-be treated as a completed invitation or password reset.
+be treated as a completed invitation or access update.
 
 To revoke access:
 
@@ -157,9 +157,9 @@ sudo -u orion-parent /opt/wantara/parent-portal/parent-portal \
   -config /etc/orion-parent/portal.json -action revoke -email parent@example.com
 ```
 
-`notify` takes `-email` and sends the current link without changing credentials.
-Passwords and OTPs are not printed by these commands. The service stores only
-password hashes; a forgotten password requires `reissue`, not recovery.
+`notify` takes `-email` and sends the current link without changing the assignment.
+OTPs are not printed by these commands. Existing accounts use email-and-OTP login
+automatically; no reissue or new invitation is needed.
 
 ## Verify and troubleshoot
 
@@ -171,7 +171,7 @@ curl -i https://portal.example.com/classroom/media/index.m3u8
 ```
 
 The page should load and unauthenticated media should return `401`. An authorized
-end-to-end check must complete password login, receive the OTP at the configured
+end-to-end check must enter the invited email address, receive the OTP at the configured
 destination, play the assigned real classroom feed, then verify logout blocks new
 media requests. Also check that another camera path and control-console API are
 unavailable through this portal. Check mobile layout separately.
@@ -223,7 +223,7 @@ Rollback by stopping this service, restoring the previous binary and affected
 configuration/assets, validating nginx if changed, then starting the service and
 repeating the access/playback checks. Restore a database only when required for
 schema compatibility or intentional state recovery: an old database also restores
-old passwords, camera assignments and sessions, and can undo revocations. Review
+old camera assignments and sessions, and can undo revocations. Review
 that consequence before restoring it.
 
 To retire the portal, stop and disable `orion-parent-portal.service`, remove only
@@ -238,16 +238,16 @@ active session and account; browser parameters cannot choose another camera.
 Relay session cookies stay server-side, scoped to a parent session. Parents receive
 neither camera credentials nor control-console permissions.
 
-Passwords use bcrypt. OTP challenges and browser tokens are hashed at rest; OTPs
+OTP challenges and browser tokens are hashed at rest; OTPs
 expire after five minutes and five incorrect attempts. Sessions expire after 30
 minutes, and completing a new login invalidates previous sessions for the account.
 HTTPS cookies are host-only, Secure, HttpOnly and SameSite Strict. Cross-origin
-POSTs are rejected. Account lockouts and OTP cooldowns persist; the per-IP throttle
+POSTs are rejected. OTP cooldowns persist; the per-IP throttle
 is in memory and resets on restart. Run one service instance against its dedicated
 SQLite database; this is not a distributed session/rate-limit architecture.
 
-Credentials and OTPs delivered to the same mailbox do not constitute independent
-factors against mailbox compromise. Authorized viewers can still record their
+Email OTP is a single authentication factor and depends on the security of the
+recipient mailbox (or the configured school-team approval process). Authorized viewers can still record their
 screen, and already buffered video may remain briefly after logout or revocation.
 This service has no roster integration, self-service signup, administrative web
 UI or recording/archive subsystem. Native iOS playback, sustained load and recipient

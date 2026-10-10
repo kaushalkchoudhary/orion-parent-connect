@@ -40,12 +40,12 @@ func main() {
 		if err := s.Invite(context.Background(), *email, *class, *camera); err != nil {
 			log.Fatal(err)
 		}
-		log.Print("Invitation sent; credentials are not logged.")
+		log.Print("Invitation sent.")
 	case "reissue":
 		if err := s.Reissue(context.Background(), *email, *class, *camera); err != nil {
 			log.Fatal(err)
 		}
-		log.Print("Updated credentials and portal link sent; previous sessions revoked.")
+		log.Print("Updated classroom access and portal link sent; previous sessions revoked.")
 	case "revoke":
 		if err := s.Revoke(*email); err != nil {
 			log.Fatal(err)
@@ -55,7 +55,7 @@ func main() {
 		if err := s.NotifyLink(context.Background(), *email); err != nil {
 			log.Fatal(err)
 		}
-		log.Print("Updated portal link sent; existing password unchanged.")
+		log.Print("Updated portal link sent; camera assignment unchanged.")
 	case "serve":
 		host, _, err := net.SplitHostPort(cfg.Listen)
 		if err != nil || !net.ParseIP(host).IsLoopback() {

@@ -3,7 +3,6 @@ module orion/parent-connect
 go 1.22
 
 require (
-	golang.org/x/crypto v0.31.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
 )

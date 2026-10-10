@@ -1,6 +1,6 @@
 # Orion Parent Connect
 
-An invitation-only classroom camera portal for Orchids International School, powered by Orion. Parents sign in with an emailed password and a fresh email code, then see the one camera assigned to their account. The service has its own accounts, database and process; it does not share control-console sessions.
+An invitation-only classroom camera portal for Orchids International School, powered by Orion. Parents sign in with their invited email address and a fresh email code, then see the one camera assigned to their account. The service has its own accounts, database and process; it does not share control-console sessions.
 
 This standalone repository contains the portal source, browser assets, tests and deployment templates. Its extraction does not change the running service, camera configuration or account database. The source repository is [kaushalkchoudhary/orion-parent-connect](https://github.com/kaushalkchoudhary/orion-parent-connect), on branch `main`.
 
@@ -41,7 +41,7 @@ For compatibility, the deployment templates retain `/opt/wantara/parent-portal` 
 
 ## Accounts and access
 
-An operator creates an account with one classroom label and one relay camera path. The invitation contains the portal link, account email and generated password together. Account creation is not public.
+An operator creates an account with one classroom label and one relay camera path. The invitation contains the portal link, account email and classroom assignment; no password is issued. Account creation is not public.
 
 ```sh
 sudo -u orion-parent /opt/wantara/parent-portal/parent-portal \
@@ -49,9 +49,11 @@ sudo -u orion-parent /opt/wantara/parent-portal/parent-portal \
   -email parent@example.com -class 'Classroom A' -camera classroom-a
 ```
 
-`invite` refuses an existing account. Use `reissue` with the same arguments to explicitly send a new password and update an active account's classroom assignment; this invalidates existing sessions and pending codes. `notify` sends a link reminder without changing the password. `revoke` disables access. Each action uses the private configuration and sends mail only when explicitly invoked. See [operations](docs/OPERATIONS.md) for the commands and recovery behavior.
+`invite` refuses an existing account. Use `reissue` with the same arguments to resend access instructions and update an active account's classroom assignment; this invalidates existing sessions and pending codes. `notify` sends a link reminder without changing the assignment. `revoke` disables access. Each action uses the private configuration and sends mail only when explicitly invoked. See [operations](docs/OPERATIONS.md) for the commands and recovery behavior.
 
 Leave `smtp.teamInbox` empty to send login codes to the invited account. Setting it explicitly routes codes to a school-team mailbox for approval instead; the login page shows that destination. Codes expire after five minutes, and authenticated sessions last 30 minutes. The server chooses the camera from the account on every media request. Verification emails show a selectable code; the portal offers **Paste code** with a manual-paste fallback. Gmail decides whether its own copy-code card appears.
+
+The live player shows status, pause/resume and fullscreen controls without a playback timer or seek bar.
 
 ## Verification
 

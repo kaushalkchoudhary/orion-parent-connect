@@ -63,11 +63,11 @@ func TestViewerOTPAndUpdatedLink(t *testing.T) {
 	f := setup(t)
 	f.s.cfg.SMTP.TeamInbox = ""
 	f.s.cfg.BasePath = "/classroom"
-	password := invite(t, f, "parent@example.test", "camera-a")
+	invite(t, f, "parent@example.test", "camera-a")
 	if !strings.Contains(f.messages[0].body, "https://parents.example.test/classroom/") {
 		t.Fatal("invitation uses wrong path")
 	}
-	b, _ := json.Marshal(map[string]string{"email": "parent@example.test", "password": password})
+	b, _ := json.Marshal(map[string]string{"email": "parent@example.test"})
 	w := request(f.s, "POST", "/api/login", string(b))
 	requireStatus(t, w, 200)
 	var result struct {
@@ -91,7 +91,7 @@ func TestViewerOTPAndUpdatedLink(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := f.messages[len(f.messages)-1]
-	if strings.Contains(last.body, password) || !strings.Contains(last.body, "https://parents.example.test/classroom/") {
+	if strings.Contains(last.body, "Password:") || !strings.Contains(last.body, "https://parents.example.test/classroom/") {
 		t.Fatal("updated link resends password or uses wrong URL")
 	}
 }
@@ -99,7 +99,7 @@ func TestViewerOTPAndUpdatedLink(t *testing.T) {
 func TestSubpathMediaRedirect(t *testing.T) {
 	f := setup(t)
 	f.s.cfg.BasePath = "/classroom"
-	a := authenticate(t, f, "parent@example.test", invite(t, f, "parent@example.test", "camera-a"))
+	a := authenticate(t, f, invite(t, f, "parent@example.test", "camera-a"))
 	w := request(f.s, "GET", "/media/redirect.m3u8", "", a)
 	requireStatus(t, w, 302)
 	if w.Header().Get("Location") != "/classroom/media/index.m3u8?cookieCheck=1" {

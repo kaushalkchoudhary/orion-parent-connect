@@ -13,14 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
-func passwordHash(v string) (string, error) {
-	b, err := bcrypt.GenerateFromPassword([]byte(v), bcrypt.DefaultCost)
-	return string(b), err
-}
 func emailAddress(v string) (string, error) {
 	v = strings.ToLower(strings.TrimSpace(v))
 	a, err := mail.ParseAddress(v)
@@ -30,7 +25,7 @@ func emailAddress(v string) (string, error) {
 	return v, nil
 }
 
-// Invite refuses to resend an already active account's credentials.
+// Invite creates access only for an explicitly invited email address.
 func (s *Server) Invite(ctx context.Context, email, className, camera string) error {
 	email, err := emailAddress(email)
 	if err != nil {
@@ -40,20 +35,12 @@ func (s *Server) Invite(ctx context.Context, email, className, camera string) er
 	if className == "" || len(className) > 120 || strings.ContainsAny(className, "\r\n") || !cameraID.MatchString(camera) {
 		return errors.New("valid class name and camera path are required")
 	}
-	password, err := secret()
-	if err != nil {
-		return err
-	}
-	ph, err := passwordHash(password)
-	if err != nil {
-		return err
-	}
-	a := Account{Email: email, ClassName: className, Camera: camera, PasswordHash: ph}
+	a := Account{Email: email, ClassName: className, Camera: camera}
 	// The unique address prevents concurrent invitation runs from issuing two accounts.
 	if err := s.db.Create(&a).Error; err != nil {
 		return errors.New("account already exists or could not be saved; no invitation sent")
 	}
-	body := s.invitationBody(email, password, className)
+	body := s.invitationBody(email, className)
 	if err := s.send(ctx, email, "Orchids Parent Connect | Your invitation", body); err != nil {
 		// No active account or usable session is left behind after a failed invitation.
 		if delErr := s.db.Delete(&a).Error; delErr != nil {
@@ -67,15 +54,15 @@ func (s *Server) Invite(ctx context.Context, email, className, camera string) er
 	return nil
 }
 
-func (s *Server) invitationBody(email, password, className string) string {
+func (s *Server) invitationBody(email, className string) string {
 	delivery := "sent to your email address"
 	if s.cfg.SMTP.TeamInbox != "" {
 		delivery = "sent to the school team at " + s.cfg.SMTP.TeamInbox + ". Contact the team to receive your code"
 	}
-	return fmt.Sprintf("Welcome to Orchids International School's Parent Connect, powered by Orion.\n\nPortal: %s\nEmail: %s\nPassword: %s\nClassroom: %s\n\nKeep these credentials private. Each sign-in requires a fresh verification code, %s. Codes expire after 5 minutes; viewing sessions last 30 minutes.\n", s.cfg.Origin+s.cfg.BasePath+"/", email, password, className, delivery)
+	return fmt.Sprintf("Welcome to Orchids International School's Parent Connect, powered by Orion.\n\nPortal: %s\nEmail: %s\nClassroom: %s\n\nSign in with your invited email address. No password is needed. Each sign-in requires a fresh verification code, %s. Codes expire after 5 minutes; viewing sessions last 30 minutes.\n", s.cfg.Origin+s.cfg.BasePath+"/", email, className, delivery)
 }
 
-// Reissue explicitly replaces credentials and the assigned classroom. A failed send rolls back access changes.
+// Reissue updates the assigned classroom and revokes existing access sessions.
 func (s *Server) Reissue(ctx context.Context, email, className, camera string) error {
 	email, err := emailAddress(email)
 	if err != nil {
@@ -85,21 +72,13 @@ func (s *Server) Reissue(ctx context.Context, email, className, camera string) e
 	if className == "" || len(className) > 120 || strings.ContainsAny(className, "\r\n") || !cameraID.MatchString(camera) {
 		return errors.New("valid class name and camera path are required")
 	}
-	password, err := secret()
-	if err != nil {
-		return err
-	}
-	ph, err := passwordHash(password)
-	if err != nil {
-		return err
-	}
 	sent := false
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		var a Account
 		if err := tx.Where("email = ? AND active = ?", email, true).First(&a).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&a).Updates(map[string]any{"password_hash": ph, "class_name": className, "camera": camera, "next_otp": time.Time{}, "failed_logins": 0, "locked_until": time.Time{}}).Error; err != nil {
+		if err := tx.Model(&a).Updates(map[string]any{"class_name": className, "camera": camera, "next_otp": time.Time{}, "failed_logins": 0, "locked_until": time.Time{}}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("account_id = ?", a.ID).Delete(&session{}).Error; err != nil {
@@ -108,15 +87,15 @@ func (s *Server) Reissue(ctx context.Context, email, className, camera string) e
 		if err := tx.Where("account_id = ?", a.ID).Delete(&challenge{}).Error; err != nil {
 			return err
 		}
-		body := s.invitationBody(email, password, className) + "\nThis new password replaces your previous password.\n"
+		body := s.invitationBody(email, className)
 		if err := s.send(ctx, email, "Orchids Parent Connect | Your classroom access", body); err != nil {
-			return errors.New("credentials could not be delivered; previous access preserved")
+			return errors.New("access email could not be delivered; previous access preserved")
 		}
 		sent = true
 		return nil
 	})
 	if sent && err != nil {
-		return errors.New("email accepted but credential update failed; operator action required")
+		return errors.New("email accepted but access update failed; operator action required")
 	}
 	return err
 }
@@ -155,7 +134,7 @@ func (s *Server) NotifyLink(ctx context.Context, email string) error {
 	if destination == "" {
 		destination = a.Email
 	}
-	body := fmt.Sprintf("Your Orchids International School Parent Connect portal has a new look, powered by Orion.\n\nPortal: %s\nEmail: %s\nClassroom: %s\n\nUse the same password from your original invitation. We have not changed or resent it.\n\nEvery sign-in sends a fresh verification code to: %s\nCodes expire after 5 minutes. Check Spam or Junk if needed.\n", s.cfg.Origin+s.cfg.BasePath+"/", a.Email, a.ClassName, destination)
+	body := fmt.Sprintf("Your Orchids International School Parent Connect portal has a new look, powered by Orion.\n\nPortal: %s\nEmail: %s\nClassroom: %s\n\nSign in with your invited email address. No password is needed.\n\nEvery sign-in sends a fresh verification code to: %s\nCodes expire after 5 minutes. Check Spam or Junk if needed.\n", s.cfg.Origin+s.cfg.BasePath+"/", a.Email, a.ClassName, destination)
 	return s.send(ctx, a.Email, "Orchids Parent Connect | Your updated portal link", body)
 }
 
@@ -187,8 +166,7 @@ func (s *Server) allowLogin(r *http.Request) bool {
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email string `json:"email"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -204,43 +182,12 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	email, _ := emailAddress(in.Email)
 	var a Account
 	err := s.db.Where("email = ? AND active = ?", email, true).First(&a).Error
-	ph := a.PasswordHash
-	if err != nil {
-		ph = s.dummyHash
-	}
-	passwordOK := bcrypt.CompareHashAndPassword([]byte(ph), []byte(in.Password)) == nil
-	credentialsOK := false
-	if err == nil {
-		err = s.db.Transaction(func(tx *gorm.DB) error {
-			var current Account
-			if err := tx.Where("id = ? AND active = ?", a.ID, true).First(&current).Error; err != nil {
-				return err
-			}
-			if current.LockedUntil.After(s.now()) {
-				return nil
-			}
-			if !current.LockedUntil.IsZero() {
-				current.FailedLogins = 0
-				current.LockedUntil = time.Time{}
-			}
-			if passwordOK {
-				current.FailedLogins = 0
-				credentialsOK = true
-			} else {
-				current.FailedLogins++
-				if current.FailedLogins >= 5 {
-					current.LockedUntil = s.now().Add(15 * time.Minute)
-				}
-			}
-			return tx.Model(&current).Updates(map[string]any{"failed_logins": current.FailedLogins, "locked_until": current.LockedUntil}).Error
-		})
-	}
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		fail(w, 503, "Sign-in is temporarily unavailable.")
 		return
 	}
-	if !credentialsOK {
-		fail(w, 401, "Email or password is incorrect.")
+	if err != nil {
+		fail(w, 401, "Unable to sign in. Use your invited email address.")
 		return
 	}
 	token, err := secret()
@@ -258,7 +205,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	c := challenge{Hash: hash(token), AccountID: a.ID, CodeHash: hash(token + ":" + code), ExpiresAt: now.Add(otpTTL)}
 	cooldown := errors.New("cooldown")
 	err = s.db.Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&Account{}).Where("id = ? AND active = ? AND next_otp <= ? AND password_hash = ?", a.ID, true, now, a.PasswordHash).Update("next_otp", now.Add(time.Minute))
+		// Read the assignment again inside the transaction in case an operator changed it.
+		if err := tx.Where("id = ? AND active = ?", a.ID, true).First(&a).Error; err != nil {
+			return err
+		}
+		res := tx.Model(&Account{}).Where("id = ? AND active = ? AND next_otp <= ?", a.ID, true, now).Update("next_otp", now.Add(time.Minute))
 		if res.Error != nil {
 			return res.Error
 		}
