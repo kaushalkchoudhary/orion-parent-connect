@@ -252,3 +252,10 @@ screen, and already buffered video may remain briefly after logout or revocation
 This service has no roster integration, self-service signup, administrative web
 UI or recording/archive subsystem. Native iOS playback, sustained load and recipient
 mail delivery need deployment-specific verification before wider enrollment.
+
+## Brief camera interruptions
+
+The player retries fatal stream errors up to three times, three seconds apart.
+Successful playback resets the retry count; sign-out cancels pending retries.
+If the camera stays unavailable, the parent can use Retry. Expired sessions still
+require a fresh OTP. Reconnection cannot repair a recorder or branch network outage.

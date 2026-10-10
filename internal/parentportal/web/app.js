@@ -1,20 +1,29 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let player=null,expiryTimer=null,codeTimer=null;
+let player=null,expiryTimer=null,codeTimer=null,reconnectTimer=null,reconnectAttempts=0;
 async function api(path,body){
   const response=await fetch('.'+path,{method:body===undefined?'GET':'POST',credentials:'same-origin',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
   const data=await response.json();
   if(!response.ok){const error=new Error(data.error||'Something went wrong. Please try again.');error.status=response.status;throw error}
   return data;
 }
-function stopVideo(){if(player){player.destroy();player=null}const video=$('video');video.pause();video.removeAttribute('src');video.load();clearInterval(expiryTimer)}
+function stopVideo(){clearTimeout(reconnectTimer);reconnectAttempts=0;if(player){player.destroy();player=null}const video=$('video');video.pause();video.removeAttribute('src');video.load();clearInterval(expiryTimer)}
 function signIn(message=''){
   $('viewer').classList.remove('expanded');if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});$('fullscreen').textContent='Fullscreen';stopVideo();clearInterval(codeTimer);$('classroom').hidden=true;$('access').hidden=false;$('login-form').hidden=false;$('otp-form').hidden=true;$('step-label').textContent='YOUR CLASSROOM CONNECTION';$('auth-error').textContent=message;$('otp').value='';
 }
 function videoUnavailable(message='The classroom feed is temporarily unavailable. Please try again.'){
   $('stream-status').textContent='Feed unavailable';$('stream-status').className='';$('video-message').hidden=false;$('video-message-text').textContent=message;$('retry').hidden=false;
 }
+function reconnectVideo(){
+  if($('classroom').hidden)return;
+  clearTimeout(reconnectTimer);
+  if(reconnectAttempts>=3){videoUnavailable();return}
+  reconnectAttempts++;
+  $('stream-status').textContent='Reconnecting…';$('stream-status').className='';$('video-message').hidden=false;$('video-message-text').textContent='Reconnecting to your classroom…';$('retry').hidden=true;
+  reconnectTimer=setTimeout(openVideo,3000);
+}
 function openVideo(){
+  clearTimeout(reconnectTimer);
   if(player){player.destroy();player=null}
   const video=$('video');video.pause();video.removeAttribute('src');video.load();
   $('stream-status').textContent='Connecting…';$('stream-status').className='';$('video-message').hidden=false;$('video-message-text').textContent='Opening your classroom window…';$('retry').hidden=true;
@@ -22,16 +31,16 @@ function openVideo(){
     player=new Hls({maxBufferLength:10});
     player.on(Hls.Events.ERROR,(_event,data)=>{
       if(data.response?.code===401){signIn('Your viewing session has ended. Please sign in for a new code.');return}
-      if(data.fatal){player?.destroy();player=null;videoUnavailable()}
+      if(data.fatal){player?.destroy();player=null;reconnectVideo()}
     });
     player.loadSource('media/index.m3u8');player.attachMedia(video);
   }else if(video.canPlayType('application/vnd.apple.mpegurl')){video.src='media/index.m3u8'}
   else{videoUnavailable('This browser cannot play the classroom feed. Please use a current Chrome, Edge or Safari browser.')}
 }
-$('video').addEventListener('playing',()=>{$('video-message').hidden=true;$('stream-status').textContent='Live';$('stream-status').className='live'});
+$('video').addEventListener('playing',()=>{clearTimeout(reconnectTimer);reconnectAttempts=0;$('video-message').hidden=true;$('stream-status').textContent='Live';$('stream-status').className='live'});
 $('video').addEventListener('waiting',()=>{$('stream-status').textContent='Buffering…';$('stream-status').className=''});
-$('video').addEventListener('error',()=>{if(!$('classroom').hidden)videoUnavailable()});
-$('retry').addEventListener('click',openVideo);
+$('video').addEventListener('error',()=>{if(!$('classroom').hidden)reconnectVideo()});
+$('retry').addEventListener('click',()=>{reconnectAttempts=0;openVideo()});
 async function showClassroom(){
   const user=await api('/api/me');clearInterval(codeTimer);$('access').hidden=true;$('classroom').hidden=false;$('class-name').textContent=user.className;$('account-email').textContent=user.email;$('view-error').textContent='';$('otp').value='';
   openVideo();clearInterval(expiryTimer);

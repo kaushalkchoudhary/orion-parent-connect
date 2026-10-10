@@ -55,6 +55,11 @@ try {
   await page.setViewportSize({width:390,height:844});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.setViewportSize({width:1440,height:1000});
+  let manifestFailures=0;
+  await page.route('**/media/index.m3u8',async route=>{
+    if(manifestFailures++<2){await route.fulfill({status:404,body:'Camera reconnecting'});return}
+    await route.continue();
+  });
   await page.getByRole('button',{name:'Open my classroom'}).click();
   await page.getByRole('heading',{name:'Test classroom · Bluebird'}).waitFor();
   let playing=false;
@@ -63,7 +68,9 @@ try {
     if(playing)break;
     await new Promise(resolve=>setTimeout(resolve,250));
   }
-  assert(playing,'The synthetic classroom video must play');
+  assert(playing,'The classroom video must recover after transient manifest failures');
+  assert(manifestFailures>=3,'The player must retry the unavailable feed');
+  await page.unroute('**/media/index.m3u8');
   assert.equal(await page.locator('video').evaluate(v=>v.controls),false);
   assert.equal(await page.locator('#toggle-play').count(),0);
   await page.getByRole('button',{name:'Fullscreen',exact:true}).click();
